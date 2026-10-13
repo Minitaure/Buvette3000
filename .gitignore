@@ -1,0 +1,10 @@
+# Environnement Python et construction PyInstaller
+.venv/
+__pycache__/
+build/
+dist/
+*.spec
+_data_sauvegarde/
+
+# Données locales (base des ventes, mot de passe, positions des fenêtres)
+data/
