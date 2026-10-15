@@ -1,6 +1,6 @@
 # Buvette 3000
 
-Caisse de buvette portable pour Windows, aux couleurs du Bischwiller Badminton Club.
+Caisse de buvette portable pour Windows.
 L'exécutable et ses données tiennent dans un seul dossier : on le copie sur un autre PC et on le lance, sans installation.
 
 ## Fonctionnalités
