@@ -997,6 +997,61 @@ class GestionProduits(tk.Toplevel):
 
 
 # ---------------------------------------------------------------------------
+# Paramètres : point d'entrée des réglages (protégé par mot de passe)
+# ---------------------------------------------------------------------------
+class Parametres(tk.Toplevel):
+    def __init__(self, parent, base):
+        super().__init__(parent)
+        icone_au_affichage(self)
+        self.title("Paramètres")
+        self.configure(bg=FOND)
+        self.resizable(False, False)
+        self.transient(parent)
+        self.base = base
+
+        bandeau_couleurs(self).pack(fill="x")
+        corps = tk.Frame(self, bg=FOND, padx=px(24), pady=px(18))
+        corps.pack(fill="both", expand=True)
+        tk.Label(corps, text="PARAMÈTRES", font=(F_TITRE, 24), fg=NUIT, bg=FOND, anchor="w").pack(fill="x")
+
+        # Une tuile par écran de réglage (d'autres viendront s'ajouter ici)
+        tuiles = tk.Frame(corps, bg=FOND)
+        tuiles.pack(fill="x", pady=(px(14), px(18)))
+        for i, (titre, detail, commande) in enumerate((
+                ("PRODUITS", "Liste, prix, couleurs,\nimport / export CSV", self._produits),
+        )):
+            ligne, colonne = divmod(i, 3)
+            bouton(tuiles, titre, commande, CYAN, police=(F_TITRE, 20), width=12, height=2).grid(
+                row=ligne * 2, column=colonne, padx=(0, px(12)), sticky="we")
+            tk.Label(tuiles, text=detail, font=(F_TEXTE, 10), fg=GRIS_TEXTE, bg=FOND, justify="center").grid(
+                row=ligne * 2 + 1, column=colonne, padx=(0, px(12)), pady=(px(4), px(12)))
+
+        tk.Frame(corps, width=px(520), height=0, bg=FOND).pack()   # largeur : place pour 3 tuiles
+        bas = tk.Frame(corps, bg=FOND)
+        bas.pack(anchor="e")
+        bouton(bas, "FERMER", self.destroy, NUIT_CLAIR, police=(F_TITRE, 14), padx=px(18), pady=px(5)).pack()
+
+        self.bind("<Escape>", lambda e: self.destroy())
+        restaurer_position(self, "parametres", taille=False)
+        self.grab_set()
+        self.focus_set()
+
+    def destroy(self):
+        memoriser_position(self, "parametres")
+        super().destroy()
+
+    def _ouvrir(self, fenetre):
+        """Ouvre un écran de réglage puis reprend la main une fois celui-ci fermé."""
+        self.wait_window(fenetre)
+        if self.winfo_exists():
+            self.grab_set()
+            self.focus_set()
+
+    def _produits(self):
+        self._ouvrir(GestionProduits(self, self.base))
+
+
+# ---------------------------------------------------------------------------
 # Historique / récapitulatif du jour
 # ---------------------------------------------------------------------------
 class Historique(tk.Toplevel):
@@ -1227,7 +1282,7 @@ class SaisieCommande(tk.Toplevel):
                    lambda p=dict(p): self.clic_produit(p), p["couleur"], police=(F_TITRE, 19),
                    wraplength=px(200)).grid(row=r, column=c, sticky="nsew", padx=5, pady=5)
         if not produits:
-            tk.Label(self.zone_produits, text="Aucun produit actif.\nBouton Produits (F4) de l'écran principal.",
+            tk.Label(self.zone_produits, text="Aucun produit actif.\nParamètres (F4) > Produits.",
                      font=(F_TEXTE, 12), fg=CIEL, bg=NUIT).grid()
 
     # --- panier ---
@@ -1381,7 +1436,7 @@ class Principal(tk.Tk):
         self.rafraichir()
         self.bind("<F2>", lambda e: self.nouvelle_commande())
         self.bind("<F3>", lambda e: self.historique())
-        self.bind("<F4>", lambda e: self.produits())
+        self.bind("<F4>", lambda e: self.parametres())
 
     def _styles(self):
         appliquer_styles(self)
@@ -1405,7 +1460,7 @@ class Principal(tk.Tk):
                padx=22, pady=10).pack(side="right")
         bouton(haut, "HISTORIQUE  (F3)", self.historique, NUIT_CLAIR, police=(F_TITRE, 16),
                padx=18, pady=10).pack(side="right", padx=8)
-        bouton(haut, "PRODUITS  (F4)", self.produits, NUIT_CLAIR, police=(F_TITRE, 16),
+        bouton(haut, "PARAMÈTRES  (F4)", self.parametres, NUIT_CLAIR, police=(F_TITRE, 16),
                padx=18, pady=10).pack(side="right")
         bandeau_couleurs(self).pack(fill="x")
 
@@ -1557,9 +1612,9 @@ class Principal(tk.Tk):
         if demander_mot_de_passe(self):
             Historique(self, self.base)
 
-    def produits(self):
+    def parametres(self):
         if demander_mot_de_passe(self):
-            GestionProduits(self, self.base)
+            Parametres(self, self.base)
 
     def terminer_commande(self, vente_id):
         v = self.base.commande(vente_id)

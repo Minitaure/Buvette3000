@@ -14,7 +14,7 @@ L'exécutable et ses données tiennent dans un seul dossier : on le copie sur un
 - Accès à l'historique et aux produits protégé par mot de passe (`data/config.json`).
 - Positions des fenêtres mémorisées, affichage net en haute résolution (125 %, 150 %…).
 
-Raccourcis : **F2** nouvelle commande, **F3** historique, **F4** produits.
+Raccourcis : **F2** nouvelle commande, **F3** historique, **F4** paramètres (produits…).
 
 ## Utilisation
 
