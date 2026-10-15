@@ -164,7 +164,7 @@ def demander_mot_de_passe(parent):
     return True
 
 # ---------------------------------------------------------------------------
-# Charte graphique : couleurs du Bischwiller Badminton Club (affiche Beachwiller)
+# Charte graphique
 # ---------------------------------------------------------------------------
 NUIT = "#0b2532"            # bleu nuit (fond)
 NUIT_CLAIR = "#173d50"
@@ -184,7 +184,7 @@ GRIS = "#9aa7ae"
 GRIS_CLAIR = "#e3e8eb"
 GRIS_TEXTE = "#5b6b75"
 
-F_TITRE = "Bahnschrift SemiBold Condensed"   # proche de la police condensée de l'affiche
+F_TITRE = "Bahnschrift SemiBold Condensed"   # police de titre condensée
 F_TITRE_LEGER = "Bahnschrift Condensed"
 F_TEXTE = "Segoe UI"
 
@@ -224,7 +224,7 @@ def texte_sur(couleur):
 
 
 def bouton(parent, texte, commande, fond, police=None, **options):
-    """Bouton plat aux couleurs du club, avec effet de survol."""
+    """Bouton plat aux couleurs de la charte, avec effet de survol."""
     fg = options.pop("fg", texte_sur(fond))
     b = tk.Button(parent, text=texte, command=commande, bg=fond, fg=fg, activebackground=assombrir(fond),
                   activeforeground=fg, disabledforeground=GRIS, relief="flat", bd=0, cursor="hand2",
@@ -245,7 +245,7 @@ def tronquer(texte, police, largeur):
 
 
 def bandeau_couleurs(parent, hauteur=5):
-    """Liseré multicolore rappelant le volant de l'affiche."""
+    """Liseré multicolore sous les en-têtes."""
     f = tk.Frame(parent, height=hauteur, bg=NUIT)
     for c in (CYAN, MAGENTA, JAUNE, VERT, ORANGE, VIOLET):
         tk.Frame(f, bg=c, height=hauteur).pack(side="left", fill="x", expand=True)
@@ -365,7 +365,7 @@ class Base:
                 [(n, p, c, col, i + 1) for i, (n, p, c, col) in enumerate(PRODUITS_DEFAUT)],
             )
         self._renumeroter()
-        # Ancienne palette -> couleurs du club
+        # Ancienne palette -> couleurs de la charte
         self.cx.executemany("UPDATE produit SET couleur = ? WHERE couleur = ?",
                             list(zip(COULEURS_PRODUITS, ANCIENNES_COULEURS)))
         self.cx.commit()
