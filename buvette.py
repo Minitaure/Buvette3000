@@ -10,7 +10,7 @@ import sqlite3
 import sys
 import tkinter as tk
 from datetime import datetime, date
-from tkinter import ttk, messagebox, filedialog, simpledialog
+from tkinter import ttk, filedialog
 import tkinter.font as tkfont
 
 APP_NAME = "Buvette 3000"
@@ -155,11 +155,12 @@ def demander_mot_de_passe(parent):
     if "mot_de_passe" not in config:
         ecrire_config("mot_de_passe", MOT_DE_PASSE_DEFAUT)
         config["mot_de_passe"] = MOT_DE_PASSE_DEFAUT
-    saisie = simpledialog.askstring("Accès protégé", "Mot de passe :", show="*", parent=parent)
+    saisie = Dialogue(parent, "Accès protégé", "Mot de passe :",
+                      [("ANNULER", False, NUIT_CLAIR), ("VALIDER", True, VERT)], saisie_masquee=True).resultat
     if saisie is None:
         return False
     if saisie != config["mot_de_passe"]:
-        messagebox.showerror("Accès protégé", "Mot de passe incorrect.", parent=parent)
+        informer(parent, "Accès protégé", "Mot de passe incorrect.")
         return False
     return True
 
@@ -553,6 +554,78 @@ class Base:
 
 
 # ---------------------------------------------------------------------------
+# Boîtes de dialogue aux couleurs de l'application (saisie et suivi des commandes)
+# ---------------------------------------------------------------------------
+class Dialogue(tk.Toplevel):
+    """Question ou information en grand. boutons : [(texte, valeur, couleur)] de gauche à droite ;
+    Entrée = dernier bouton (action principale), Échap = fermer sans choix (resultat None)."""
+
+    def __init__(self, parent, titre, message, boutons, saisie_masquee=False):
+        super().__init__(parent)
+        icone_au_affichage(self)
+        self.title(titre)
+        self.configure(bg="white")
+        self.resizable(False, False)
+        self.transient(parent)
+        self.resultat = None
+
+        bandeau_couleurs(self).pack(fill="x")
+        corps = tk.Frame(self, bg="white", padx=px(22), pady=px(16))
+        corps.pack(fill="both", expand=True)
+        tk.Label(corps, text=titre.upper(), font=(F_TITRE, 20), fg=NUIT, bg="white", anchor="w").pack(fill="x")
+        tk.Label(corps, text=message, font=(F_TEXTE, 12), fg=NUIT, bg="white", anchor="w", justify="left",
+                 wraplength=px(440)).pack(fill="x", pady=(px(6), px(18)))
+        self.var_saisie = tk.StringVar()
+        self.saisie_masquee = saisie_masquee
+        if saisie_masquee:
+            champ = ttk.Entry(corps, textvariable=self.var_saisie, show="•", font=(F_TEXTE, 14))
+            champ.pack(fill="x", pady=(0, px(18)))
+            self.after_idle(champ.focus_set)
+        tk.Frame(corps, width=px(380), height=0, bg="white").pack()   # largeur minimale
+        bas = tk.Frame(corps, bg="white")
+        bas.pack(anchor="e")
+        for i, (texte, valeur, couleur) in enumerate(boutons):
+            bouton(bas, texte, lambda v=valeur: self._fermer(v), couleur, police=(F_TITRE, 14),
+                   padx=px(18), pady=px(5)).pack(side="left", padx=(px(8) if i else 0, 0))
+
+        defaut = boutons[-1][1]
+        self.bind("<Return>", lambda e: self._fermer(defaut))
+        self.bind("<KP_Enter>", lambda e: self._fermer(defaut))
+        self.bind("<Escape>", lambda e: self._fermer(None))
+        self.protocol("WM_DELETE_WINDOW", lambda: self._fermer(None))
+
+        # Centrée sur la fenêtre parente
+        self.update_idletasks()
+        x = parent.winfo_rootx() + (parent.winfo_width() - self.winfo_reqwidth()) // 2
+        y = parent.winfo_rooty() + (parent.winfo_height() - self.winfo_reqheight()) // 3
+        self.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+
+        precedent = self.grab_current()      # fenêtre modale en dessous (saisie, encaissement…)
+        self.grab_set()
+        self.focus_force()
+        if saisie_masquee:
+            champ.focus_set()
+        self.wait_window()
+        if precedent is not None and precedent.winfo_exists():
+            precedent.grab_set()
+
+    def _fermer(self, valeur):
+        # Avec un champ de saisie : resultat = texte saisi si validé, None sinon
+        self.resultat = self.var_saisie.get() if self.saisie_masquee and valeur is True else valeur
+        if self.saisie_masquee and valeur is not True:
+            self.resultat = None
+        self.destroy()
+
+
+def demander(parent, titre, message, oui="OUI", non="NON", couleur_oui=VERT):
+    return Dialogue(parent, titre, message, [(non, False, NUIT_CLAIR), (oui, True, couleur_oui)]).resultat is True
+
+
+def informer(parent, titre, message):
+    Dialogue(parent, titre, message, [("OK", True, CYAN)])
+
+
+# ---------------------------------------------------------------------------
 # Fenêtre d'encaissement
 # ---------------------------------------------------------------------------
 class Encaissement(tk.Toplevel):
@@ -641,12 +714,12 @@ class Encaissement(tk.Toplevel):
         try:
             recu = self._lire_recu()
         except ValueError:
-            messagebox.showerror("Encaisser", "Montant reçu invalide.", parent=self)
+            informer(self, "Encaisser", "Le montant reçu est invalide.")
             return
         if recu == 0:
             recu = self.total  # pas de saisie = compte juste
         if recu < self.total:
-            messagebox.showerror("Encaisser", "Le montant reçu est insuffisant.", parent=self)
+            informer(self, "Encaisser", "Le montant reçu est insuffisant.")
             return
         self.resultat = recu
         self.destroy()
@@ -845,22 +918,22 @@ class GestionProduits(tk.Toplevel):
     def _enregistrer(self):
         nom = self.v_nom.get().strip()
         if not nom:
-            messagebox.showerror("Produits", "Le nom est obligatoire.", parent=self)
+            informer(self, "Produits", "Le nom est obligatoire.")
             return
         try:
             prix = parse_euros(self.v_prix.get())
             ordre = int(self.v_ordre.get() or 0)
         except ValueError:
-            messagebox.showerror("Produits", "Prix ou ordre invalide.", parent=self)
+            informer(self, "Produits", "Prix ou ordre invalide.")
             return
         lie = self.v_lie.get().strip()
         if lie:
             cible = self.base.produit_par_nom(lie)
             if cible is None:
-                messagebox.showerror("Produits", f"Produit lié « {lie} » introuvable.", parent=self)
+                informer(self, "Produits", f"Produit lié « {lie} » introuvable.")
                 return
             if lie.lower() == nom.lower():
-                messagebox.showerror("Produits", "Un produit ne peut pas être lié à lui-même.", parent=self)
+                informer(self, "Produits", "Un produit ne peut pas être lié à lui-même.")
                 return
             lie = cible["nom"]
         self.pid = self.base.enregistrer_produit(self.pid, nom, prix, self.v_cat.get().strip(),
@@ -877,9 +950,9 @@ class GestionProduits(tk.Toplevel):
         try:
             exporter_produits_csv(self.base, chemin)
         except OSError as e:
-            messagebox.showerror("Exporter", f"Impossible d'écrire le fichier :\n{e}", parent=self)
+            informer(self, "Exporter", f"Impossible d'écrire le fichier :\n{e}")
             return
-        messagebox.showinfo("Exporter", f"Produits exportés :\n{chemin}", parent=self)
+        informer(self, "Exporter", f"Produits exportés :\n{chemin}")
 
     def _importer(self):
         chemin = filedialog.askopenfilename(parent=self, initialdir=DATA_DIR,
@@ -889,21 +962,20 @@ class GestionProduits(tk.Toplevel):
         try:
             produits, erreurs = lire_produits_csv(chemin)
         except OSError as e:
-            messagebox.showerror("Importer", f"Impossible de lire le fichier :\n{e}", parent=self)
+            informer(self, "Importer", f"Impossible de lire le fichier :\n{e}")
             return
         if erreurs:
             liste = "\n".join(erreurs[:15]) + ("\n…" if len(erreurs) > 15 else "")
-            messagebox.showerror("Importer", f"Import annulé, le fichier contient des erreurs :\n\n{liste}",
-                                 parent=self)
+            informer(self, "Importer", f"Import annulé, le fichier contient des erreurs :\n\n{liste}")
             return
         if not produits:
-            messagebox.showinfo("Importer", "Aucun produit dans le fichier.", parent=self)
+            informer(self, "Importer", "Aucun produit dans le fichier.")
             return
-        choix = messagebox.askyesnocancel(
-            "Importer", f"{len(produits)} produits dans le fichier.\n\n"
-            "Oui : remplacer toute la liste (les produits absents du fichier sont supprimés)\n"
-            "Non : mettre à jour les produits de même nom et ajouter les nouveaux\n"
-            "Annuler : ne rien faire", parent=self)
+        choix = Dialogue(
+            self, "Importer", f"{len(produits)} produits dans le fichier.\n\n"
+            "Remplacer : toute la liste est remplacée (les produits absents du fichier sont supprimés).\n"
+            "Mettre à jour : les produits de même nom sont mis à jour, les nouveaux ajoutés.",
+            [("ANNULER", None, NUIT_CLAIR), ("REMPLACER", True, MAGENTA), ("METTRE À JOUR", False, VERT)]).resultat
         if choix is None:
             return
         ignores = self.base.importer_produits(produits, remplacer=choix)
@@ -912,13 +984,13 @@ class GestionProduits(tk.Toplevel):
         message = f"{len(produits)} produits importés."
         if ignores:
             message += "\n\nProduits liés introuvables (lien retiré) :\n" + "\n".join(ignores)
-        messagebox.showinfo("Importer", message, parent=self)
+        informer(self, "Importer", message)
 
     def _supprimer(self):
         if self.pid is None:
             return
-        if messagebox.askyesno("Produits", f"Supprimer « {self.v_nom.get()} » ?\n"
-                               "(l'historique des ventes est conservé)", parent=self):
+        if demander(self, "Supprimer", f"Supprimer « {self.v_nom.get()} » ?\n"
+                    "(l'historique des ventes est conservé)", oui="SUPPRIMER", non="GARDER", couleur_oui=MAGENTA):
             self.base.supprimer_produit(self.pid)
             self._nouveau()
             self._charger()
@@ -1021,10 +1093,10 @@ class Historique(tk.Toplevel):
             return
         v = self.base.commande(int(sel[0]))
         if v["statut"] == "en_cours" and not v["annule"]:
-            messagebox.showinfo("Remettre en cours", "Cette commande est déjà en cours.", parent=self)
+            informer(self, "Remettre en cours", "Cette commande est déjà en cours.")
             return
-        if messagebox.askyesno("Remettre en cours", f"Remettre la commande {v['numero']:03d} dans les "
-                               "commandes en cours ?", parent=self):
+        if demander(self, "Remettre en cours", f"Remettre la commande {v['numero']:03d} dans les "
+                    "commandes en cours ?", oui="REMETTRE EN COURS", non="NON"):
             self.base.remettre_en_cours(v["id"])
             self._charger()
             self.t_ventes.selection_set(str(v["id"]))
@@ -1034,8 +1106,8 @@ class Historique(tk.Toplevel):
         sel = self.t_ventes.selection()
         if not sel:
             return
-        if messagebox.askyesno("Annuler", "Annuler cette commande ? Elle ne comptera plus dans le récapitulatif.",
-                               parent=self):
+        if demander(self, "Annuler la commande", "Annuler cette commande ? Elle ne comptera plus dans le "
+                    "récapitulatif.", oui="ANNULER LA COMMANDE", non="NON", couleur_oui=MAGENTA):
             self.base.annuler_vente(int(sel[0]))
             self._charger()
             self.master.rafraichir()
@@ -1058,7 +1130,7 @@ class Historique(tk.Toplevel):
                 for l in self.base.lignes_vente(v["id"]):
                     w.writerow([v["numero"], v["date"].replace("T", " "), l["produit"], l["qte"],
                                 f"{l['prix'] / 100:.2f}".replace(".", ","), "oui" if v["annule"] else ""])
-        messagebox.showinfo("Export", f"Fichier enregistré :\n{chemin}", parent=self)
+        informer(self, "Export", f"Fichier enregistré :\n{chemin}")
 
 
 # ---------------------------------------------------------------------------
@@ -1219,7 +1291,8 @@ class SaisieCommande(tk.Toplevel):
         self.maj_panier(selection=i)
 
     def vider(self):
-        if self.panier and messagebox.askyesno("Vider", "Vider la commande ?", parent=self):
+        if self.panier and demander(self, "Vider", "Retirer tous les articles de la commande ?",
+                                    oui="VIDER", non="GARDER", couleur_oui=MAGENTA):
             self.panier.clear()
             self.maj_panier()
 
@@ -1250,7 +1323,8 @@ class SaisieCommande(tk.Toplevel):
             return
 
         if not self.panier:
-            if messagebox.askyesno("Commande vide", "La commande est vide. L'annuler ?", parent=self):
+            if demander(self, "Commande vide", "La commande ne contient plus aucun article.\nL'annuler ?",
+                        oui="ANNULER LA COMMANDE", non="RETOUR", couleur_oui=MAGENTA):
                 self.base.annuler_vente(self.vente_id)
                 self._fermer("Commande annulée")
             return
@@ -1262,7 +1336,8 @@ class SaisieCommande(tk.Toplevel):
     def annuler(self):
         modifie = self.panier != self.panier_initial
         question = "Abandonner la commande ?" if self.vente_id is None else "Abandonner les modifications ?"
-        if modifie and not messagebox.askyesno("Annuler", question, parent=self):
+        if modifie and not demander(self, "Annuler", question, oui="ABANDONNER", non="CONTINUER",
+                                    couleur_oui=MAGENTA):
             return
         self.destroy()
 
@@ -1490,10 +1565,9 @@ class Principal(tk.Tk):
         v = self.base.commande(vente_id)
         numero = v["numero"]
         if not v["encaisse"]:
-            messagebox.showinfo("Terminer", f"La commande {numero:03d} doit être encaissée avant d'être terminée.",
-                                parent=self)
+            informer(self, "Terminer", f"La commande {numero:03d} doit être encaissée avant d'être terminée.")
             return
-        if messagebox.askyesno("Terminer", f"Terminer la commande {numero:03d} ?", parent=self):
+        if demander(self, "Terminer", f"Terminer la commande {numero:03d} ?", oui="TERMINER", non="NON"):
             self.base.terminer_commande(vente_id)
             self.rafraichir(f"Commande {numero:03d} terminée")
 
